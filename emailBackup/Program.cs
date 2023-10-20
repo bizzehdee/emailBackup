@@ -17,6 +17,7 @@ namespace emailBackup
                 )
                 .AddUserSecrets<Program>()
                 .AddCommandLine(args)
+                .AddEnvironmentVariables("EB_")
                 .Build();
 
             var serviceProvider = new ServiceCollection()

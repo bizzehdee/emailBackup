@@ -8,6 +8,7 @@ namespace emailBackup.Models
 {
     internal class ConfigModel
     {
-        public ConfigAccountModeel[] Accounts { get; set; }
+        public string BackupRoot { get; set; }
+        public ConfigAccountModel[] Accounts { get; set; }
     }
 }

@@ -36,7 +36,7 @@ namespace emailBackup
             }
         }
 
-        private async Task ProcessAccount(ConfigAccountModeel account)
+        private async Task ProcessAccount(ConfigAccountModel account)
         {
             // Set the directory where the backup will be saved
             string backupDir = account.BackupDirectory;
@@ -50,11 +50,20 @@ namespace emailBackup
 
             var folders = await client.GetFoldersAsync(new FolderNamespace('/', ""));
 
-            foreach (var folder in folders)
+            foreach (var folder in folders.Where(f => f.FullName.StartsWith("[Google Mail]") == false))
             {
                 Console.WriteLine($"Opening Folder {folder.FullName}");
 
-                await folder.OpenAsync(FolderAccess.ReadOnly);
+                try
+                {
+                    await folder.OpenAsync(FolderAccess.ReadOnly);
+                }
+                catch
+                {
+                    Console.WriteLine($"Failed to open Folder {folder.FullName}");
+                    continue;
+                }
+
                 // Get a list of all messages in the Inbox folder
                 IEnumerable<UniqueId> uids = await folder.SearchAsync(SearchQuery.All);
                 Console.WriteLine($"Downloading {uids.Count()} messages");
@@ -63,18 +72,27 @@ namespace emailBackup
                 foreach (UniqueId uid in uids.Reverse())
                 {
                     // Save the message to a local file
-                    string filename = Path.Combine(backupDir, folder.Name, uid + ".eml");
+                    var filename = Path.Combine(config.BackupRoot, backupDir, folder.Name, uid + ".eml");
 
-                    if(File.Exists(filename))
+                    if (File.Exists(filename))
                     {
                         continue;
                     }
 
                     // Get the message as a MIME entity
-                    var message = await folder.GetMessageAsync(uid);
+                    MimeMessage message;
 
-                    var path = Path.Combine(backupDir, folder.Name);
-                    if(Directory.Exists(path) == false)
+                    try
+                    {
+                        message = await folder.GetMessageAsync(uid);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    var path = Path.Combine(config.BackupRoot, backupDir, folder.Name);
+                    if (Directory.Exists(path) == false)
                     {
                         Directory.CreateDirectory(path);
                     }
@@ -85,7 +103,14 @@ namespace emailBackup
                     }
 
                     var fileInfo = new FileInfo(filename);
-                    fileInfo.LastWriteTime = message.Date.DateTime;
+
+                    try
+                    {
+                        fileInfo.LastWriteTime = message.Date.DateTime;
+                    }
+                    catch
+                    {
+                    }
                 }
 
                 await folder.CloseAsync(false);

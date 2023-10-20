@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace emailBackup.Models
 {
-    internal class ConfigAccountModeel
+    internal class ConfigAccountModel
     {
         public string Server { get; set; }
         public short Port { get; set; }
