@@ -21,7 +21,7 @@ namespace emailBackup
                 .Build();
 
             var serviceProvider = new ServiceCollection()
-                .AddSingleton<IConfigurationRoot>(config)
+                .AddSingleton(config)
                 .AddTransient<App, App>()
                 .BuildServiceProvider();
 
