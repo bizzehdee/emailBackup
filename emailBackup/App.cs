@@ -39,18 +39,37 @@ namespace emailBackup
         private async Task ProcessAccount(ConfigAccountModel account)
         {
             // Set the directory where the backup will be saved
-            string backupDir = account.BackupDirectory;
+            var backupDir = account.BackupDirectory;
 
-            ImapClient client = new();
+            var client = new ImapClient();
 
-            await client.ConnectAsync(account.Server, account.Port, account.UseSSL);
+            try
+            {
+                await client.ConnectAsync(account.Server, account.Port, account.UseSSL);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to connect to {account.Server}:{account.Port}");
+                Console.WriteLine($"EXCEPTION: {ex.Message}");
+                return;
+            }
 
             // Authenticate with the IMAP server using the specified username and password
-            client.Authenticate(account.Username, account.Password);
+            try
+            {
+                client.Authenticate(account.Username, account.Password);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to authenticate to {account.Server}:{account.Port}");
+                Console.WriteLine($"EXCEPTION: {ex.Message}");
+                return;
+            }
 
             var folders = await client.GetFoldersAsync(new FolderNamespace('/', ""));
+            var syncFolders = folders.Where(f => !account.IgnoreFolders.Contains(f.FullName)).ToList();
 
-            foreach (var folder in folders.Where(f => f.FullName.StartsWith("[Google Mail]") == false))
+            foreach (var folder in syncFolders)
             {
                 Console.WriteLine($"Opening Folder {folder.FullName}");
 
@@ -65,11 +84,17 @@ namespace emailBackup
                 }
 
                 // Get a list of all messages in the Inbox folder
-                IEnumerable<UniqueId> uids = await folder.SearchAsync(SearchQuery.All);
-                Console.WriteLine($"Downloading {uids.Count()} messages");
+                var uids = await folder.SearchAsync(SearchQuery.All);
+                if(uids == null || uids.Count == 0)
+                {
+                    Console.WriteLine($"No UIDs in {folder.FullName}. Skipping");
+                    continue;
+                }
+
+                Console.WriteLine($"Downloading {uids.Count} messages");
 
                 // Loop through the messages and download each one
-                foreach (UniqueId uid in uids.Reverse())
+                foreach (var uid in uids.Reverse())
                 {
                     // Save the message to a local file
                     var filename = Path.Combine(config.BackupRoot, backupDir, folder.Name, uid + ".eml");
@@ -92,7 +117,7 @@ namespace emailBackup
                     }
 
                     var path = Path.Combine(config.BackupRoot, backupDir, folder.Name);
-                    if (Directory.Exists(path) == false)
+                    if (!Directory.Exists(path))
                     {
                         Directory.CreateDirectory(path);
                     }
@@ -110,6 +135,7 @@ namespace emailBackup
                     }
                     catch
                     {
+                        Console.WriteLine($"Failed to set LastWriteTime for #{uid} \"{message.Subject}\" to {message.Date.DateTime}");
                     }
                 }
 
